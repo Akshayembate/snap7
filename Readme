@@ -1,0 +1,3 @@
+to make the file  ==> mingw32-make
+for run the executable ==>  ./executable.exe
+to clean the make file ==> mingw32-make clean
