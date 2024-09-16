@@ -3,6 +3,6 @@
 
 #include "snap7.h"
 
-void writeValuesToPLC(TS7Client* Client, byte* MyDB35, int* writeIntValues, float* writeRealValues, int IntArraySize, int RealArraySize, int writeStart, int writeSize, int DB_NUMBER);
+bool writeValuesToPLC_2(TS7Client* Client, byte* MyDB35, int* writeIntValues, float* writeRealValues, int IntArraySize, int RealArraySize, int writeStart, int writeSize, int DB_NUMBER);
 
 #endif // WRITESNAP_H

@@ -2,7 +2,7 @@
 #include "WriteSnap.h"
 #include "s7.h"
 
-void writeValuesToPLC(TS7Client* Client, byte* MyDB35, int* writeIntValues, float* writeRealValues, int IntArraySize, int RealArraySize, int writeStart, int writeSize, int DB_NUMBER)
+bool writeValuesToPLC_2(TS7Client* Client, byte* MyDB35, int* writeIntValues, float* writeRealValues, int IntArraySize, int RealArraySize, int writeStart, int writeSize, int DB_NUMBER)
 {
     // Prepare buffer with array of ints and reals
     for (int i = 0; i < IntArraySize; ++i)
@@ -20,6 +20,7 @@ void writeValuesToPLC(TS7Client* Client, byte* MyDB35, int* writeIntValues, floa
     if (result == 0)
     {
         std::cout << "Successfully wrote values to PLC." << std::endl;
+        return true;
     }
     else
     {

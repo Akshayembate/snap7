@@ -2,7 +2,7 @@
 #include "ReadSnap.h"
 #include "s7.h"
 
-void readValuesFromPLC(TS7Client* Client, byte* MyDB35, int IntArraySize, int RealArraySize, int readStart, int readSize, int DB_NUMBER)
+bool readValuesFromPLC_2(TS7Client* Client, byte* MyDB35, int IntArraySize, int RealArraySize, int readStart, int readSize, int DB_NUMBER)
 {
     // Read array of ints and reals from DB
     int result = Client->DBRead(DB_NUMBER, readStart, readSize, MyDB35);
@@ -21,6 +21,7 @@ void readValuesFromPLC(TS7Client* Client, byte* MyDB35, int IntArraySize, int Re
             float value = S7_GetRealAt(MyDB35, (IntArraySize * 2) + (i * 4));
             std::cout << "RealValue[" << i << "] = " << value << std::endl;
         }
+        return true;
     }
     else
     {

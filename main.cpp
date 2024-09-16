@@ -2,9 +2,11 @@
 #include <Windows.h>
 #include "snap7.h"
 #include "s7.h"
-#include "KeyboardInput.h"
+//#include "KeyboardInput.h"
 #include "ReadSnap.h"
 #include "WriteSnap.h"
+#include <chrono>
+#include <future>
 
 using namespace std;
 TS7Client* Client;
@@ -13,7 +15,7 @@ int Rack = 0;
 int Slot = 1;
 
 int DB_NUMBER = 2; // Database number
-const char* Address = "192.66.1.11";
+const char* Address = "192.168.1.5";
 
 const int IntArraySize = 20;
 const int RealArraySize = 20;
@@ -55,6 +57,8 @@ void plc_Disconnect()
     cout << "Disconnected from PLC." << endl;
 }
 
+// 
+
 int main()
 {
     // Connect to the PLC
@@ -62,16 +66,30 @@ int main()
 
     while (true)
     {
+        // start timing for one read or write cycle
+        auto start = std::chrono::high_resolution_clock::now();
+
         // Handle keyboard input
-        handleKeyboardInput();
+        //handleKeyboardInput();
         
         // Read values from DB
-        readValuesFromPLC(Client, MyDB35, IntArraySize, RealArraySize, readStart, readSize, DB_NUMBER);
+        bool readDone = readValuesFromPLC_2(Client, MyDB35, IntArraySize, RealArraySize, readStart, readSize, DB_NUMBER);
         
         // Write values to DB
-        writeValuesToPLC(Client, MyDB35, writeIntValues, writeRealValues, IntArraySize, RealArraySize, writeStart, writeSize, DB_NUMBER);
+        if (readDone)
+        {
+        bool writedone = writeValuesToPLC_2(Client, MyDB35, writeIntValues, writeRealValues, IntArraySize, RealArraySize, writeStart, writeSize, DB_NUMBER);
+        if (writedone)
+        {
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> cycletime = end - start;
 
-        Sleep(100); // Sleep for 100 ms
+            // calculate and print the update freequency
+            double freequency = 1.0 / cycletime.count();
+            cout << "cycle time : " << cycletime.count() << "freequency : " << freequency << "\n";
+        }
+        }
+        //Sleep(100); // Sleep for 100 ms
     }
 
     // Disconnect from the PLC
