@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include "snap7.h"
 #include <chrono>
+#include <thread> // For threading
 
 using namespace std;
 
@@ -40,39 +41,37 @@ void plc_Disconnect() {
     cout << "Disconnected from PLC." << endl;
 }
 
-// Optimized function to perform a multi-variable read and write
-void multiVarReadWrite(const char* dataToWrite, int length) {
-    TS7DataItem items[2];
+// Asynchronous read function
+void asyncRead(int length) {
+    TS7DataItem readItem;
+    readItem.Area = S7AreaDB;
+    readItem.WordLen = S7WLByte;
+    readItem.Result = 0;
+    readItem.DBNumber = DB_NUMBER;
+    readItem.Start = readStart;
+    readItem.Amount = length;
+    readItem.pdata = MyDB35;
 
-    // Set up the item for reading
-    items[0].Area = S7AreaDB;
-    items[0].WordLen = S7WLByte;
-    items[0].Result = 0;
-    items[0].DBNumber = DB_NUMBER;
-    items[0].Start = readStart;
-    items[0].Amount = length;
-    items[0].pdata = MyDB35;
-
-    // Set up the item for writing
-    items[1].Area = S7AreaDB;
-    items[1].WordLen = S7WLByte;
-    items[1].Result = 0;
-    items[1].DBNumber = DB_NUMBER;
-    items[1].Start = writeStart;
-    items[1].Amount = length;
-    items[1].pdata = (void*)dataToWrite;
-
-    // Perform the multi-variable write and read in a single communication cycle
-    int result = Client->WriteMultiVars(&items[1], 1);
-    if (result != 0) {
-        cout << "WriteMultiVars failed. Error: " << CliErrorText(result) << endl;
-        return;
-    }
-
-    result = Client->ReadMultiVars(&items[0], 1);
+    int result = Client->ReadMultiVars(&readItem, 1);
     if (result != 0) {
         cout << "ReadMultiVars failed. Error: " << CliErrorText(result) << endl;
-        return;
+    }
+}
+
+// Asynchronous write function
+void asyncWrite(const char* dataToWrite, int length) {
+    TS7DataItem writeItem;
+    writeItem.Area = S7AreaDB;
+    writeItem.WordLen = S7WLByte;
+    writeItem.Result = 0;
+    writeItem.DBNumber = DB_NUMBER;
+    writeItem.Start = writeStart;
+    writeItem.Amount = length;
+    writeItem.pdata = (void*)dataToWrite;
+
+    int result = Client->WriteMultiVars(&writeItem, 1);
+    if (result != 0) {
+        cout << "WriteMultiVars failed. Error: " << CliErrorText(result) << endl;
     }
 }
 
@@ -82,13 +81,18 @@ int main() {
 
     // Main loop for multi-variable reading and writing
     const char* data = "OptimizedDataFlow";
-    
+
     while (true) {
         // Start timing
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Perform the optimized multi-variable read and write
-        multiVarReadWrite(data, stringLength);
+        // Perform asynchronous read and write in parallel
+        std::thread readThread(asyncRead, stringLength);
+        std::thread writeThread(asyncWrite, data, stringLength);
+
+        // Wait for both threads to complete
+        readThread.join();
+        writeThread.join();
 
         // End timing and calculate the cycle time
         auto end = std::chrono::high_resolution_clock::now();
