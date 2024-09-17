@@ -12,7 +12,7 @@ int DB_NUMBER = 32;
 const char* Address = "192.168.1.5";
 
 // Define buffer size
-const int BufferSize = 128;
+const int BufferSize = 64;
 byte MyDB35[BufferSize]; // Buffer to hold data
 
 int readStart = 256;
@@ -40,25 +40,39 @@ void plc_Disconnect() {
     cout << "Disconnected from PLC." << endl;
 }
 
-// Optimized function to read and write in a single batch
-void readWriteData(const char* dataToWrite, int length) {
-    // Write data
-    memcpy(MyDB35, dataToWrite, length);  // Move data into buffer
-    int writeResult = Client->DBWrite(DB_NUMBER, writeStart, length, MyDB35);
+// Optimized function to perform a multi-variable read and write
+void multiVarReadWrite(const char* dataToWrite, int length) {
+    TS7DataItem items[2];
 
-    // Read data
-    int readResult = Client->DBRead(DB_NUMBER, readStart, length, MyDB35);
+    // Set up the item for reading
+    items[0].Area = S7AreaDB;
+    items[0].WordLen = S7WLByte;
+    items[0].Result = 0;
+    items[0].DBNumber = DB_NUMBER;
+    items[0].Start = readStart;
+    items[0].Amount = length;
+    items[0].pdata = MyDB35;
 
-    if (writeResult == 0 && readResult == 0) {
-        // Optional: Process the read data if necessary
-        // cout << "Successfully wrote and read data from PLC." << endl;
-    } else {
-        if (writeResult != 0) {
-            cout << "Failed to write data to PLC. Error: " << CliErrorText(writeResult) << endl;
-        }
-        if (readResult != 0) {
-            cout << "Failed to read data from PLC. Error: " << CliErrorText(readResult) << endl;
-        }
+    // Set up the item for writing
+    items[1].Area = S7AreaDB;
+    items[1].WordLen = S7WLByte;
+    items[1].Result = 0;
+    items[1].DBNumber = DB_NUMBER;
+    items[1].Start = writeStart;
+    items[1].Amount = length;
+    items[1].pdata = (void*)dataToWrite;
+
+    // Perform the multi-variable write and read in a single communication cycle
+    int result = Client->WriteMultiVars(&items[1], 1);
+    if (result != 0) {
+        cout << "WriteMultiVars failed. Error: " << CliErrorText(result) << endl;
+        return;
+    }
+
+    result = Client->ReadMultiVars(&items[0], 1);
+    if (result != 0) {
+        cout << "ReadMultiVars failed. Error: " << CliErrorText(result) << endl;
+        return;
     }
 }
 
@@ -66,15 +80,15 @@ int main() {
     // Connect to the PLC
     plc_Connect();
 
-    // Main loop for reading and writing
+    // Main loop for multi-variable reading and writing
     const char* data = "OptimizedDataFlow";
     
     while (true) {
         // Start timing
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Perform combined read and write operation
-        readWriteData(data, stringLength);
+        // Perform the optimized multi-variable read and write
+        multiVarReadWrite(data, stringLength);
 
         // End timing and calculate the cycle time
         auto end = std::chrono::high_resolution_clock::now();
@@ -86,8 +100,8 @@ int main() {
             cout << "Cycle time: " << cycleTime.count() << " ms, Frequency: " << frequency << " Hz" << endl;
         }
 
-        // Optional: Add a short sleep or remove entirely to allow faster operation
-        // this_thread::sleep_for(chrono::milliseconds(1));  // Adjust based on performance
+        // Optional: Add a short sleep to reduce CPU load (adjust or remove as needed)
+        Sleep(1);
     }
 
     // Disconnect from the PLC
