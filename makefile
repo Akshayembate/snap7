@@ -8,7 +8,7 @@ CXXFLAGS = -Wall -std=c++11
 INCLUDES =
 
 # Source files
-SRCS = main.cpp snap7.cpp s7.cpp KeyboardInput.cpp ReadSnap.cpp WriteSnap.cpp
+SRCS = main.cpp snap7.cpp s7.cpp 
 
 # Object files
 OBJS = $(SRCS:.cpp=.o)
