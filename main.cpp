@@ -1,26 +1,24 @@
 #include <iostream>
 #include <Windows.h>
 #include "snap7.h"
-#include "s7.h"
 #include <chrono>
-#include <string>
-#include <iomanip> // For printing byte data
+#include <iomanip>
 
 using namespace std;
 
 TS7Client* Client;
 int Rack = 0;
 int Slot = 1;
-int DB_NUMBER = 32; // Ensure this matches your DB number
+int DB_NUMBER = 32;
 const char* Address = "192.168.1.5";
 
-// Define buffer size
-const int BufferSize = 128;
+// Define buffer size optimized for faster operation
+const int BufferSize = 64; // Reduce buffer size for faster transfers
 byte MyDB35[BufferSize]; // Buffer to hold data
 
-int readStart = 256; // Ensure this offset is valid within the PLC's DB
+int readStart = 256;
 int writeStart = 0;
-int stringLength = 100;
+int stringLength = 32; // The length of the string to be written/read, optimized for small size
 
 // Function to connect to the PLC
 void plc_Connect() {
@@ -43,36 +41,28 @@ void plc_Disconnect() {
     cout << "Disconnected from PLC." << endl;
 }
 
-// Function to write a string to the PLC
-void writeStringToPLC(const char* strToWrite) {
-    // Ensure that the string fits into the specified buffer size
-    S7_SetStringAt(MyDB35, writeStart, stringLength, strToWrite);
-    int result = Client->DBWrite(DB_NUMBER, writeStart, BufferSize, MyDB35);
+// Function to write data to the PLC using memory operations
+void writeDataToPLC(const char* dataToWrite, int length) {
+    memcpy(MyDB35, dataToWrite, length);  // Move data directly into buffer
+    int result = Client->DBWrite(DB_NUMBER, writeStart, length, MyDB35);  // Write only necessary bytes
 
-    if (result == 0) {
-        cout << "Successfully wrote string to PLC: " << strToWrite << endl;
-    } else {
-        cout << "Failed to write string to PLC. Error: " << CliErrorText(result) << endl;
+    if (result != 0) {
+        cout << "Failed to write data to PLC. Error: " << CliErrorText(result) << endl;
     }
 }
 
-// Function to read a string from the PLC
-void readStringFromPLC() {
-    int result = Client->DBRead(DB_NUMBER, readStart, BufferSize, MyDB35);
-    //std::cout << "Result: " << result << "\n";
+// Function to read data from the PLC using memory operations
+void readDataFromPLC(int length) {
+    int result = Client->DBRead(DB_NUMBER, readStart, length, MyDB35);  // Read only the necessary bytes
 
     if (result == 0) {
-        cout << "Raw byte data from PLC: ";
-        for (int i = 0; i < BufferSize; i++) {
+        cout << "Successfully read data from PLC. Data: ";
+        for (int i = 0; i < length; i++) {
             cout << hex << setfill('0') << setw(2) << (int)MyDB35[i] << " ";
         }
         cout << endl;
-
-        // Try to extract the string from the buffer
-        string readString = S7_GetStringAt(MyDB35, readStart);
-        cout << "Successfully read string from PLC: " << readString << endl;
     } else {
-        cout << "Failed to read string from PLC. Error: " << CliErrorText(result) << endl;
+        cout << "Failed to read data from PLC. Error: " << CliErrorText(result) << endl;
     }
 }
 
@@ -80,15 +70,18 @@ int main() {
     // Connect to the PLC
     plc_Connect();
 
+    // Main loop for reading and writing without threads
+    const char* data = "OptimizedDataFlow";
+    
     while (true) {
         // Start timing for one read or write cycle
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Write a string to the PLC
-        writeStringToPLC("SecondStringToWriteHere");
+        // Write data to the PLC
+        writeDataToPLC(data, stringLength);
 
-        // Read a string from the PLC
-        readStringFromPLC();
+        // Read data from the PLC
+        readDataFromPLC(stringLength);
 
         // End timing and calculate the cycle time
         auto end = std::chrono::high_resolution_clock::now();
@@ -99,6 +92,9 @@ int main() {
             double frequency = 1000.0 / cycleTime.count(); // Frequency in Hz (1 / cycle time in seconds)
             cout << "Cycle time: " << cycleTime.count() << " ms, Frequency: " << frequency << " Hz" << endl;
         }
+
+        // Optional: reduce delay (or remove this completely)
+        // Avoid this_thread::sleep_for(chrono::milliseconds(1)); to maximize the loop speed
     }
 
     // Disconnect from the PLC
