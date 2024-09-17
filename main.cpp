@@ -2,7 +2,6 @@
 #include <Windows.h>
 #include "snap7.h"
 #include <chrono>
-#include <thread> // For threading
 
 using namespace std;
 
@@ -12,7 +11,6 @@ int Slot = 1;
 int DB_NUMBER = 32;
 const char* Address = "192.168.1.5";
 
-// Define buffer size
 const int BufferSize = 64;
 byte MyDB35[BufferSize]; // Buffer to hold data
 
@@ -20,11 +18,9 @@ int readStart = 256;
 int writeStart = 0;
 int stringLength = 32;
 
-// Function to connect to the PLC
 void plc_Connect() {
     Client = new TS7Client;
     int result = Client->ConnectTo(Address, Rack, Slot);
-
     if (result == 0) {
         cout << "Connected to PLC." << endl;
     } else {
@@ -34,82 +30,76 @@ void plc_Connect() {
     }
 }
 
-// Function to disconnect from the PLC
 void plc_Disconnect() {
     Client->Disconnect();
     delete Client;
     cout << "Disconnected from PLC." << endl;
 }
 
-// Asynchronous read function
-void asyncRead(int length) {
+DWORD WINAPI asyncRead(LPVOID length) {
     TS7DataItem readItem;
     readItem.Area = S7AreaDB;
     readItem.WordLen = S7WLByte;
     readItem.Result = 0;
     readItem.DBNumber = DB_NUMBER;
     readItem.Start = readStart;
-    readItem.Amount = length;
+    readItem.Amount = *(int*)length;
     readItem.pdata = MyDB35;
 
     int result = Client->ReadMultiVars(&readItem, 1);
     if (result != 0) {
         cout << "ReadMultiVars failed. Error: " << CliErrorText(result) << endl;
     }
+    return 0;
 }
 
-// Asynchronous write function
-void asyncWrite(const char* dataToWrite, int length) {
+DWORD WINAPI asyncWrite(LPVOID param) {
+    const char* dataToWrite = (const char*)param;
     TS7DataItem writeItem;
     writeItem.Area = S7AreaDB;
     writeItem.WordLen = S7WLByte;
     writeItem.Result = 0;
     writeItem.DBNumber = DB_NUMBER;
     writeItem.Start = writeStart;
-    writeItem.Amount = length;
+    writeItem.Amount = stringLength;
     writeItem.pdata = (void*)dataToWrite;
 
     int result = Client->WriteMultiVars(&writeItem, 1);
     if (result != 0) {
         cout << "WriteMultiVars failed. Error: " << CliErrorText(result) << endl;
     }
+    return 0;
 }
 
 int main() {
-    // Connect to the PLC
     plc_Connect();
-
-    // Main loop for multi-variable reading and writing
     const char* data = "OptimizedDataFlow";
 
     while (true) {
-        // Start timing
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Perform asynchronous read and write in parallel
-        std::thread readThread(asyncRead, stringLength);
-        std::thread writeThread(asyncWrite, data, stringLength);
+        // Create threads using Windows-specific CreateThread
+        HANDLE hReadThread = CreateThread(NULL, 0, asyncRead, &stringLength, 0, NULL);
+        HANDLE hWriteThread = CreateThread(NULL, 0, asyncWrite, (LPVOID)data, 0, NULL);
 
         // Wait for both threads to complete
-        readThread.join();
-        writeThread.join();
+        WaitForSingleObject(hReadThread, INFINITE);
+        WaitForSingleObject(hWriteThread, INFINITE);
 
-        // End timing and calculate the cycle time
+        CloseHandle(hReadThread);
+        CloseHandle(hWriteThread);
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> cycleTime = end - start;
 
-        // Calculate and print the update frequency
         if (cycleTime.count() > 0) {
-            double frequency = 1000.0 / cycleTime.count(); // Frequency in Hz
+            double frequency = 1000.0 / cycleTime.count();
             cout << "Cycle time: " << cycleTime.count() << " ms, Frequency: " << frequency << " Hz" << endl;
         }
 
-        // Optional: Add a short sleep to reduce CPU load (adjust or remove as needed)
         Sleep(1);
     }
 
-    // Disconnect from the PLC
     plc_Disconnect();
-
     return 0;
 }
